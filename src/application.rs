@@ -8,6 +8,7 @@ use glutin::event::{Event, WindowEvent};
 use cpal::Stream;
 use cpal::traits::*;
 use ringbuf::*;
+use std::f32::consts::PI;
 
 pub struct Application {
     gl: glow::Context,
@@ -109,6 +110,7 @@ impl Application {
             self.synth.frame(&inputs, &mut kc);
             if self.synth.any_change {
                 self.channel.push(self.synth.sound);
+                self.synth.any_change = false;
             }
 
             self.renderer.send(&self.gl, &kc.bytes());
@@ -186,31 +188,56 @@ unsafe fn opengl_boilerplate(xres: f32, yres: f32, event_loop: &glutin::event_lo
 
 
 fn sample_next(o: &mut SampleRequestOptions) -> f32 {
+    // channels could be fucking it up
+
+    o.sample_count = o.sample_count.wrapping_add(1);
     if let Some(new_sound) = o.channel.pop() {
         o.sound = new_sound;
+        o.sample_count = 0;
+        o.sound.duration = o.sound.A + o.sound.R + o.sound.S;
+        o.max_sample_count = (o.sound.duration * 44100.0) as u32;
+    }
+    if o.sample_count >= o.max_sample_count {
+        o.sample_count = 0;
     }
 
-    o.sample_clock = (o.sample_clock + 1.0) % (o.sample_rate * 100.0); // lol
-    o.sample_count = o.sample_count.wrapping_add(1);
+    // 2 pi t
+    let coeff = o.sample_count as f32 * 2.0 * PI / o.sample_rate;
 
-    // duration: samples / sample _rate
+    let fmod = (o.sound.fmod_freq * coeff).sin() * o.sound.fmod_amt + 1.0;
+    let lfo = 1.0 - ((o.sound.amp_lfo_freq * coeff).sin() * o.sound.amp_lfo_amount);
 
-    let f_coeff = (o.sound.fmod_freq * o.sample_clock * 2.0 * std::f32::consts::PI / o.sample_rate).sin() * o.sound.fmod_amt + 1.0;
+    let attack_len = o.sound.A * o.sample_rate;
+    let sustain_len = o.sound.S * o.sample_rate;
+    let release_len = o.sound.R * o.sample_rate;
 
+
+    let envelope = if o.sample_count as f32 <= attack_len {
+        o.sample_count as f32 / attack_len
+    } else if o.sample_count as f32 <= attack_len + sustain_len {
+        1.0
+    } else if o.sample_count as f32 <= attack_len + sustain_len + release_len {
+        1.0 - ((o.sample_count as f32 - attack_len - sustain_len) / release_len)
+    } else {
+        0.0
+    };
+
+    envelope *
     o.sound.amplitude *
-    (1.0 - (o.sound.amp_lfo_amount * o.sample_clock * o.sound.amp_lfo_freq * 2.0 * std::f32::consts::PI / o.sample_rate).sin()) *
-    (o.sample_clock * o.sound.freq * f_coeff * 2.0 * std::f32::consts::PI / o.sample_rate).sin()
+    lfo *
+    // (o.sound.freq * coeff).sin()
+    (o.sound.freq * fmod * coeff).sin()
     // (o.sample_clock * o.sound.freq * 2.0 * std::f32::consts::PI / o.sample_rate).sin()
 }
 
 pub struct SampleRequestOptions {
     pub sample_rate: f32,
-    pub sample_clock: f32,
     pub nchannels: usize,
 
-    sample_count: u32,
+    pub sample_count: u32,
+    pub max_sample_count: u32,
+
     pub sound: Sound,
-    sound_t: f32,
 
     pub channel: Consumer<Sound>,
 }
@@ -254,17 +281,15 @@ where
     F: FnMut(&mut SampleRequestOptions) -> f32 + std::marker::Send + 'static + Copy,
 {
     let sample_rate = config.sample_rate.0 as f32;
-    let sample_clock = 0f32;
     let nchannels = config.channels as usize;
     let mut request = SampleRequestOptions {
         sample_rate,
-        sample_clock,
         nchannels,
 
         sound: Sound::new(),
 
-        sound_t: 0.0,
         sample_count: 0,
+        max_sample_count: 44100,
         channel,
     };
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);

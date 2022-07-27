@@ -6,7 +6,6 @@ use crate::krenderer::*;
 pub struct Sound {
     pub freq: f32,
     pub A: f32,
-    pub D: f32,
     pub S: f32,
     pub R: f32,
 
@@ -25,7 +24,6 @@ impl Sound {
         Sound {
             freq: 440.0,
             A: 1.0,
-            D: 1.0,
             S: 1.0,
             R: 1.0,
             fmod_freq: 100.0,
@@ -53,19 +51,24 @@ impl Synth {
 
     pub fn frame(&mut self, inputs: &FrameInputState, kc: &mut KRCanvas) {
         kc.set_camera(inputs.screen_rect);
-        let w = 11;
+        kc.set_depth(1.0);
+        kc.set_colour(Vec4::new(0.7, 0.7, 0.3, 1.0));
+        kc.rect(inputs.screen_rect);
+
+        let synth_area = inputs.screen_rect.dilate_pc(-0.03);
+
+        let w = 10;
         let h = 1;
-        self.any_change |= slider(inputs.screen_rect.grid_child(0, 0, w, h), 50.0, 10000.0, &mut self.sound.freq, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(1, 0, w, h), 0.0, 1.0, &mut self.sound.A, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(2, 0, w, h), 0.0, 1.0, &mut self.sound.D, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(3, 0, w, h), 0.0, 1.0, &mut self.sound.S, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(4, 0, w, h), 0.0, 1.0, &mut self.sound.R, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(5, 0, w, h), 0.0, 1000.0, &mut self.sound.fmod_freq, true, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(6, 0, w, h), 0.0, 1.0, &mut self.sound.fmod_amt, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(7, 0, w, h), 0.0, 100.0, &mut self.sound.amp_lfo_freq, true, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(8, 0, w, h), 0.0, 1.0, &mut self.sound.amp_lfo_amount, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(9, 0, w, h), 0.0, 10.0, &mut self.sound.duration, false, inputs, kc);
-        self.any_change |= slider(inputs.screen_rect.grid_child(10, 0, w, h), 0.0, 1.0, &mut self.sound.amplitude, false, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(0, 0, w, h).dilate_pc(-0.02), 50.0, 10000.0, &mut self.sound.freq, true, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(1, 0, w, h).dilate_pc(-0.02), 0.0, 3.0, &mut self.sound.A, false, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(2, 0, w, h).dilate_pc(-0.02), 0.0, 3.0, &mut self.sound.S, false, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(3, 0, w, h).dilate_pc(-0.02), 0.0, 3.0, &mut self.sound.R, false, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(4, 0, w, h).dilate_pc(-0.02), 0.0, 1000.0, &mut self.sound.fmod_freq, true, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(5, 0, w, h).dilate_pc(-0.02), 0.0, 1.0, &mut self.sound.fmod_amt, false, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(6, 0, w, h).dilate_pc(-0.02), 0.0, 100.0, &mut self.sound.amp_lfo_freq, true, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(7, 0, w, h).dilate_pc(-0.02), 0.0, 1.0, &mut self.sound.amp_lfo_amount, false, inputs, kc);
+        // self.any_change |= slider(synth_area.grid_child(8, 0, w, h).dilate_pc(-0.02), 0.0, 10.0, &mut self.sound.duration, false, inputs, kc);
+        self.any_change |= slider(synth_area.grid_child(9, 0, w, h).dilate_pc(-0.02), 0.0, 1.0, &mut self.sound.amplitude, false, inputs, kc);
 
 
 
@@ -110,9 +113,12 @@ fn slider(r: Rect, min: f32, max: f32, val: &mut f32, log: bool, inputs: &FrameI
             slider_t = (*val + 1.0 - min).log2() / (max - min).log2();
         } else {
             // slider t is linear inverse thing
-            slider_t = remap(*val, min, max, r.top(), r.bot());
+            slider_t = unlerp(*val, min, max);
         }
     }
+
+    // linear sliders are wrong when not change, but right when change
+    // i mean it looks so simple and correct, remap val, but actually it is wrong anyway / i dont understand why its to low top
 
     let slider_pos = lerp(r.bot(), r.top(), slider_t);
     let rect_ish = r.dilate_pc(-0.05).fit_aspect_ratio(2.0);
