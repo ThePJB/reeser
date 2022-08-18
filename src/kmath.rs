@@ -5,6 +5,11 @@ pub fn lerp(x1: f32, x2: f32, t: f32) -> f32 {
     x1 * (1.0 - t) + x2 * t
 }
 
+pub fn smoothstep(x1: f32, x2: f32, t: f32) -> f32 {
+    let t = t*t*(3.0-2.0*t);
+    lerp(x1, x2, t)
+}
+
 pub fn unlerp(x: f32, t1: f32, t2: f32) -> f32 {
     (x - t1) / (t2 - t1)
 }
@@ -315,7 +320,7 @@ impl std::fmt::Display for Vec4 {
  * Shapes
  ***************************************************/
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -378,6 +383,14 @@ impl Rect {
             Rect::centered(self.centroid(), self.w, self.h * (our_a / a))
         }
     } 
+    pub fn lerp(&self, other: Rect, t: f32) -> Rect {
+        Rect::new(
+            lerp(self.x, other.x, t),
+            lerp(self.y, other.y, t),
+            lerp(self.w, other.w, t),
+            lerp(self.h, other.h, t),
+        )
+    }
     pub fn aspect(&self) -> f32 {
         self.w / self.h
     }
@@ -493,6 +506,17 @@ impl Rect {
             self.h / from.h * to.h,
         )
     }
+
+    pub fn split_ud(&self, t: f32) -> (Rect, Rect) {
+        (self.child(0.0, 0.0, 1.0, t), self.child(0.0, t, 1.0, 1.0 - t))
+    }
+    pub fn split_lr(&self, t: f32) -> (Rect, Rect) {
+        (self.child(0.0, 0.0, t, 1.0), self.child(t, 0.0, 1.0 - t, 1.0))
+    }
+
+    pub fn split_lrn(&self, n: i32) -> Vec<Rect> {
+        (0..n).map(|i| self.grid_child(i, 0, n, 1)).collect()
+    }
 }
 
 pub struct Triangle {
@@ -532,4 +556,22 @@ impl Triangle {
         Rect { x: min_x, y: min_y, w: max_x - min_x, h: max_y - min_y }
 
     }
+}
+
+#[test]
+pub fn test_lerp() {
+    let r1 = Rect::new(0.0, 0.0, 1.0, 1.0);
+    let r2 = Rect::new(1.0, 0.0, 1.0, 1.0);
+    assert_eq!(r1.lerp(r2, 0.5), Rect::new(0.5, 0.0, 1.0, 1.0));
+    assert_eq!(r1.lerp(r2, 0.3), Rect::new(0.3, 0.0, 1.0, 1.0));
+
+    let r1 = Rect::new(0.0, 0.0, 1.0, 1.0);
+    let r2 = Rect::new(1.0, 1.0, 1.0, 1.0);
+    assert_eq!(r1.lerp(r2, 0.5), Rect::new(0.5, 0.5, 1.0, 1.0));
+    assert_eq!(r1.lerp(r2, 0.3), Rect::new(0.3, 0.3, 1.0, 1.0));
+
+    let r1 = Rect::new(0.0, 0.0, 1.0, 1.0);
+    let r2 = Rect::new(1.0, 1.0, 2.0, 1.0);
+    assert_eq!(r1.lerp(r2, 0.5), Rect::new(0.5, 0.5, 1.5, 1.0));
+    assert_eq!(r1.lerp(r2, 0.3), Rect::new(0.3, 0.3, 1.3, 1.0));
 }

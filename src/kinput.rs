@@ -1,5 +1,6 @@
 use crate::kmath::*;
 
+use std::collections::HashSet;
 use std::collections::HashMap;
 use std::time::{SystemTime, Instant, Duration};
 
@@ -21,12 +22,17 @@ pub enum KeyStatus {
     Released,
 }
 
+// get rid of repeats did i do this already?
+
 #[derive(Clone)]
 pub struct FrameInputState {
     pub screen_rect: Rect,
     pub mouse_pos: Vec2,
     pub mouse_delta: Vec2,
-    pub keys: HashMap<VirtualKeyCode, KeyStatus>,
+    
+    pub prev_keys: HashSet<VirtualKeyCode>,
+    pub curr_keys: HashSet<VirtualKeyCode>,
+
     pub lmb: KeyStatus,
     pub rmb: KeyStatus,
     pub mmb: KeyStatus,
@@ -37,17 +43,14 @@ pub struct FrameInputState {
 }
 
 impl FrameInputState {
-    pub fn just_pressed(&self, keycode: VirtualKeyCode) -> bool {
-        if let Some(result) = self.keys.get(&keycode) {
-            return *result == KeyStatus::JustPressed
-        }
-        return false;
+    pub fn key_held(&self, keycode: VirtualKeyCode) -> bool {
+        self.curr_keys.contains(&keycode)
     }
-    pub fn pressed(&self, keycode: VirtualKeyCode) -> bool {
-        if let Some(result) = self.keys.get(&keycode) {
-            return *result == KeyStatus::JustPressed || *result == KeyStatus::Pressed
-        }
-        return false;
+    pub fn key_rising(&self, keycode: VirtualKeyCode) -> bool {
+        self.curr_keys.contains(&keycode) && !self.prev_keys.contains(&keycode)
+    }
+    pub fn key_falling(&self, keycode: VirtualKeyCode) -> bool {
+        !self.curr_keys.contains(&keycode) && self.prev_keys.contains(&keycode)
     }
 }
 
@@ -71,7 +74,8 @@ impl EventAggregator {
                 screen_rect: Rect::new(0.0, 0.0, xres/yres, 1.0, ), 
                 mouse_pos: Vec2::new(0.0, 0.0), 
                 mouse_delta: Vec2::new(0.0, 0.0), 
-                keys: HashMap::new(),
+                curr_keys: HashSet::new(),
+                prev_keys: HashSet::new(),
                 lmb: KeyStatus::Released, 
                 rmb: KeyStatus::Released, 
                 mmb: KeyStatus::Released, 
@@ -93,12 +97,11 @@ impl EventAggregator {
                     ..},
                 ..} => {
                     if *state == ElementState::Pressed {
-                        self.current.keys.insert(*virtual_code, KeyStatus::JustPressed);
+                        self.current.curr_keys.insert(*virtual_code);
                     } else {
-                        self.current.keys.insert(*virtual_code, KeyStatus::JustReleased);
+                        self.current.curr_keys.remove(virtual_code);
                     }
                 },
-
 
                 MouseInput { button: glutin::event::MouseButton::Left, state, ..} => {
                     if *state == ElementState::Pressed {
@@ -153,16 +156,8 @@ impl EventAggregator {
                 self.current.mouse_delta = self.instant_mouse_pos - self.current.mouse_pos;
                 self.current.mouse_pos = self.instant_mouse_pos;
                 let state = self.current.clone();
+                self.current.prev_keys = self.current.curr_keys.clone();
                 self.current.seed = khash(self.current.seed * 196513497);
-                self.current.keys.retain(|k, v| match v {KeyStatus::JustReleased => false, _ => true});
-                for (k, v) in self.current.keys.iter_mut() {
-                    match v {
-                        KeyStatus::JustPressed => {
-                            *v = KeyStatus::Pressed;
-                        },
-                        _ => {},
-                    }
-                }
                 self.current.lmb = match self.current.lmb {KeyStatus::JustPressed | KeyStatus::Pressed => KeyStatus::Pressed, KeyStatus::JustReleased | KeyStatus::Released => KeyStatus::Released};
                 self.current.mmb = match self.current.mmb {KeyStatus::JustPressed | KeyStatus::Pressed => KeyStatus::Pressed, KeyStatus::JustReleased | KeyStatus::Released => KeyStatus::Released};
                 self.current.rmb = match self.current.rmb {KeyStatus::JustPressed | KeyStatus::Pressed => KeyStatus::Pressed, KeyStatus::JustReleased | KeyStatus::Released => KeyStatus::Released};

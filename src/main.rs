@@ -1,3 +1,6 @@
+#![feature(drain_filter)]
+
+
 /* This example expose parameter to pass generator of sample.
 Good starting point for integration of cpal into your application.
 */
@@ -48,6 +51,11 @@ mod kinput;
 mod krenderer;
 mod application;
 mod synth;
+mod filter;
+mod sound;
+mod keyboard;
+mod fftviewer;
+mod envelope;
 use crate::kmath::*;
 use crate::synth::*;
 

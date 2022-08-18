@@ -4,11 +4,13 @@ use crate::kmath::*;
 use crate::kimg::*;
 use crate::krenderer::*;
 use crate::synth::*;
+use crate::sound::*;
 use glutin::event::{Event, WindowEvent};
 use cpal::Stream;
 use cpal::traits::*;
 use ringbuf::*;
 use std::f32::consts::PI;
+use crate::filter::*;
 
 pub struct Application {
     gl: glow::Context,
@@ -23,7 +25,7 @@ pub struct Application {
     audio_stream: Stream,
 
     synth: Synth,
-    channel: Producer<Sound>,
+    channel: Producer<SoundMessage>,
 }
 
 pub fn load_file(paths: &[&str]) -> String {
@@ -62,7 +64,7 @@ impl Application {
 
         let renderer = KRenderer::new(&gl, uv_shader, atlas);
 
-        let rb = RingBuffer::<Sound>::new(5);
+        let rb = RingBuffer::<SoundMessage>::new(5);
         let (mut prod, mut cons) = rb.split();
 
         let app = Application {
@@ -107,11 +109,7 @@ impl Application {
 
             let mut kc = KRCanvas::new();
 
-            self.synth.frame(&inputs, &mut kc);
-            if self.synth.any_change {
-                self.channel.push(self.synth.sound);
-                self.synth.any_change = false;
-            }
+            self.synth.frame(&inputs, &mut kc, &mut self.channel);
 
             self.renderer.send(&self.gl, &kc.bytes());
 
@@ -166,7 +164,7 @@ unsafe fn opengl_boilerplate(xres: f32, yres: f32, event_loop: &glutin::event_lo
         // .with_depth_buffer(0)
         // .with_srgb(true)
         // .with_stencil_buffer(0)
-        // .with_vsync(true)
+        .with_vsync(true)
         .build_windowed(window_builder, &event_loop)
         .unwrap()
         .make_current()
@@ -185,64 +183,46 @@ unsafe fn opengl_boilerplate(xres: f32, yres: f32, event_loop: &glutin::event_lo
     (gl, window)
 }
 
+fn pa_cubic_amplifier(input: f32) -> f32 {
+    let mut temp = 0.0;
+    let mut output = 0.0;
+    if input < 0.0 {
+        temp = input + 1.0;
+        output = (temp * temp * temp) - 1.0;
+    } else {
+        temp = input - 1.0;
+        output = (temp * temp * temp) + 1.0;
+    }
+    output
+}
 
+fn pa_fuzz(x: f32) -> f32 {
+    pa_cubic_amplifier(pa_cubic_amplifier(pa_cubic_amplifier(pa_cubic_amplifier(x))))
+}
 
 fn sample_next(o: &mut SampleRequestOptions) -> f32 {
-    // channels could be fucking it up
+    o.mixer.tick()
+    // o.filter.tick()
 
-    o.sample_count = o.sample_count.wrapping_add(1);
-    if let Some(new_sound) = o.channel.pop() {
-        o.sound = new_sound;
-        o.sample_count = 0;
-        o.sound.duration = o.sound.A + o.sound.R + o.sound.S;
-        o.max_sample_count = (o.sound.duration * 44100.0) as u32;
-    }
-    if o.sample_count >= o.max_sample_count {
-        o.sample_count = 0;
-    }
-
-    // 2 pi t
-    let coeff = o.sample_count as f32 * 2.0 * PI / o.sample_rate;
-
-    let fmod = (o.sound.fmod_freq * coeff).sin() * o.sound.fmod_amt + 1.0;
-    let lfo = 1.0 - ((o.sound.amp_lfo_freq * coeff).sin() * o.sound.amp_lfo_amount);
-
-    let attack_len = o.sound.A * o.sample_rate;
-    let sustain_len = o.sound.S * o.sample_rate;
-    let release_len = o.sound.R * o.sample_rate;
-
-
-    let envelope = if o.sample_count as f32 <= attack_len {
-        o.sample_count as f32 / attack_len
-    } else if o.sample_count as f32 <= attack_len + sustain_len {
-        1.0
-    } else if o.sample_count as f32 <= attack_len + sustain_len + release_len {
-        1.0 - ((o.sample_count as f32 - attack_len - sustain_len) / release_len)
-    } else {
-        0.0
-    };
-
-    envelope *
-    o.sound.amplitude *
-    lfo *
-    // (o.sound.freq * coeff).sin()
-    (o.sound.freq * fmod * coeff).sin()
-    // (o.sample_clock * o.sound.freq * 2.0 * std::f32::consts::PI / o.sample_rate).sin()
+    // let distorted = pa_fuzz(samp);
+    // let distorted = samp;
+    // 0.1 * o.filter.tick(distorted)
+    // 0.1 * distorted
+    // samp
 }
 
 pub struct SampleRequestOptions {
     pub sample_rate: f32,
     pub nchannels: usize,
 
-    pub sample_count: u32,
-    pub max_sample_count: u32,
+    // pub filter: Filter,
 
-    pub sound: Sound,
+    pub mixer: Mixer,
 
-    pub channel: Consumer<Sound>,
+    pub channel: Consumer<SoundMessage>,
 }
 
-pub fn stream_setup_for<F>(on_sample: F, channel: Consumer<Sound>) -> Result<cpal::Stream, anyhow::Error>
+pub fn stream_setup_for<F>(on_sample: F, channel: Consumer<SoundMessage>) -> Result<cpal::Stream, anyhow::Error>
 where
     F: FnMut(&mut SampleRequestOptions) -> f32 + std::marker::Send + 'static + Copy,
 {
@@ -274,7 +254,7 @@ pub fn stream_make<T, F>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     on_sample: F,
-    channel: Consumer<Sound>,
+    channel: Consumer<SoundMessage>,
 ) -> Result<cpal::Stream, anyhow::Error>
 where
     T: cpal::Sample,
@@ -286,10 +266,26 @@ where
         sample_rate,
         nchannels,
 
-        sound: Sound::new(),
+        // sound: Sound::new(),
 
-        sample_count: 0,
-        max_sample_count: 44100,
+        // 44100 samples / sec * 0.02
+        // o no negative part tho
+        // todo lpf
+        // use 2 fibonacci numbers
+        // maybe fucked distortion
+        // sub
+        // envelope?
+        // keyboard keys & spectrum would be good
+        // num detunes, detune amount moving around would be cool. sawtooth fmod lol
+        // or 1 kb keys for notes and another for detune. eh it can be a slider.
+        // get some reusable components hey. synth gui: kb keys sounds reusable. draw to rect etc
+        // yea get the filter calculation on there
+        // would be good to plot response etc
+
+        // filter: Filter::new(),
+        // filter: Filter::lowpass(256, 44100.0, 400.0),
+        mixer: Mixer::new(sample_rate),
+
         channel,
     };
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
@@ -310,6 +306,16 @@ where
     T: cpal::Sample,
     F: FnMut(&mut SampleRequestOptions) -> f32 + std::marker::Send + 'static,
 {
+    if let Some(msg) = request.channel.pop() {
+        match msg {
+            SoundMessage::PlaySound(s, id) => {
+                request.mixer.add_sound(s, id);
+            },
+            SoundMessage::StopSound(id) => {
+                request.mixer.stop_sound(id);
+            }
+        }
+    }
     for frame in output.chunks_mut(request.nchannels) {
         let value: T = cpal::Sample::from::<f32>(&on_sample(request));
         for sample in frame.iter_mut() {
