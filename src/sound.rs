@@ -91,7 +91,7 @@ fn test_detune() {
     assert_eq!(detune_voice_n(1000.0, 1200.0, 1, 3), 1000.0);
     assert_eq!(detune_voice_n(1000.0, 1200.0, 2, 3), 2000.0);
 
-    // yea even is more of a shitshow
+    // yea even is more of a sheeshshow
     assert_eq!(detune_voice_n(1000.0, 1200.0, 0, 4), 500.0);
     // assert_eq!(detune_voice_n(1000.0, 1200.0, 1, 4), 1000.0);
     // assert_eq!(detune_voice_n(1000.0, 1200.0, 2, 4), 2000.0);

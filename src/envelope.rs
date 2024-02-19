@@ -37,7 +37,7 @@ impl Envelope {
     // no help
     // plot values maybe
     // doesnt go negative or anything does it?
-    // lol can we do some shit filters, nonlinear filters, averager, moog ladder?? might be easy to parameterize
+    // lol can we do some sheesh filters, nonlinear filters, averager, moog ladder?? might be easy to parameterize
 
     pub fn amplitude(&self, curr_sample: u32, sample_rate: u32, released_sample: Option<u32>) -> f32 {
         // +1 for useful recursion

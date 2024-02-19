@@ -16,7 +16,7 @@ yeah fm is juicy
 
 also stuff like filter envelope
 
-oh shit can do stuff like additive, draw a spectrogram
+oh sheesh can do stuff like additive, draw a spectrogram
 shepherd tones
 look into PSGs in snes etc
 

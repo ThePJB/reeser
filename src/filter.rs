@@ -60,11 +60,11 @@ impl Filter {
 
         // ok kinda my bad for not hooking up the inputs. ideal should be complex.
 
-        // oh shit need to set for other side as well?
+        // oh sheesh need to set for other side as well?
         // then take ifft of ideal
         // then window ideal (pointwise mul)
         // real to real???
-        // fuck it maybe just do complex to complex and chuck out...
+        // flip it maybe just do complex to complex and chuck out...
 
         //lol how to actually validate
 
@@ -74,7 +74,7 @@ impl Filter {
         let fft = planner.plan_fft_inverse(len);
         fft.process(&mut ideal);
 
-        // so this shit is wasteful of real-complex, its symmetric after all or should be
+        // so this sheesh is wasteful of real-complex, its symmetric after all or should be
         // not sure about fftshift or whatever
         // gonna need to plot
         let mut coeffs: Vec<f32> = ideal.iter().map(|x| x.re / len as f32).collect();

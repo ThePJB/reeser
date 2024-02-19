@@ -3,45 +3,57 @@ use crate::kinput::*;
 use crate::kmath::*;
 use glutin::event::VirtualKeyCode;
 
-const keys: [VirtualKeyCode; 17] = [
-    VirtualKeyCode::Z, 
-    VirtualKeyCode::S, 
-    VirtualKeyCode::X, 
-    VirtualKeyCode::D, 
-    VirtualKeyCode::C, 
-    VirtualKeyCode::V, 
-    VirtualKeyCode::G, 
-    VirtualKeyCode::B, 
-    VirtualKeyCode::H, 
-    VirtualKeyCode::N, 
-    VirtualKeyCode::J, 
-    VirtualKeyCode::M, 
-    VirtualKeyCode::Comma, 
-    VirtualKeyCode::L, 
-    VirtualKeyCode::Period, 
-    VirtualKeyCode::Semicolon, 
-    VirtualKeyCode::Slash, 
+const keys: [VirtualKeyCode; 23] = [
+    VirtualKeyCode::Tab,    // A
+    VirtualKeyCode::Key1,   // Bb
+    VirtualKeyCode::Q,      // B
+    VirtualKeyCode::W,      // C
+    VirtualKeyCode::Key3,   // Db
+    VirtualKeyCode::E,      // D
+    VirtualKeyCode::Key4,   // Eb
+    VirtualKeyCode::R,      // E
+    VirtualKeyCode::T,      // F
+    VirtualKeyCode::Key6,   // Gb
+    VirtualKeyCode::Y,      // G
+    VirtualKeyCode::Key7,   // Ab
+    VirtualKeyCode::U,      // A
+    VirtualKeyCode::Key8,   // Bb
+    VirtualKeyCode::I,      // B
+    VirtualKeyCode::O,      // C
+    VirtualKeyCode::Key0,   // Db
+    VirtualKeyCode::P,      // D
+    VirtualKeyCode::Minus,       // Eb
+    VirtualKeyCode::LBracket,   // E
+    VirtualKeyCode::RBracket,   // F
+    VirtualKeyCode::Back,  // Gb
+    VirtualKeyCode::Backslash,  // G
 ];
-const white_keys: [VirtualKeyCode; 10] = [
-    VirtualKeyCode::Z, 
-    VirtualKeyCode::X, 
-    VirtualKeyCode::C, 
-    VirtualKeyCode::V, 
-    VirtualKeyCode::B, 
-    VirtualKeyCode::N, 
-    VirtualKeyCode::M, 
-    VirtualKeyCode::Comma, 
-    VirtualKeyCode::Period, 
-    VirtualKeyCode::Slash, 
+const white_keys: [VirtualKeyCode; 14] = [
+    VirtualKeyCode::Tab,    // A
+    VirtualKeyCode::Q,      // B
+    VirtualKeyCode::W,      // C
+    VirtualKeyCode::E,      // D
+    VirtualKeyCode::R,      // E
+    VirtualKeyCode::T,      // F
+    VirtualKeyCode::Y,      // G
+    VirtualKeyCode::U,      // A
+    VirtualKeyCode::I,      // B
+    VirtualKeyCode::O,      // C
+    VirtualKeyCode::P,      // D
+    VirtualKeyCode::LBracket,   // E
+    VirtualKeyCode::RBracket,   // F
+    VirtualKeyCode::Backslash,  // G
 ];
-const black_keys: [VirtualKeyCode; 7] = [
-    VirtualKeyCode::S,
-    VirtualKeyCode::D,
-    VirtualKeyCode::G,
-    VirtualKeyCode::H,
-    VirtualKeyCode::J,
-    VirtualKeyCode::L,
-    VirtualKeyCode::Semicolon,
+const black_keys: [VirtualKeyCode; 9] = [
+    VirtualKeyCode::Key1,   // Bb
+    VirtualKeyCode::Key3,   // Db
+    VirtualKeyCode::Key4,   // Eb
+    VirtualKeyCode::Key6,   // Gb
+    VirtualKeyCode::Key7,   // Ab
+    VirtualKeyCode::Key8,   // Bb
+    VirtualKeyCode::Key0,   // Db
+    VirtualKeyCode::Minus,       // Eb
+    VirtualKeyCode::Back,       // Gb
 ];
 
 pub struct Keyboard {
@@ -62,7 +74,7 @@ impl Keyboard {
         Keyboard {
             current_octave: 0,
             held_keys: Vec::new(),
-            counters: vec![0; 17],
+            counters: vec![0; keys.len()],
         }
     }
 
@@ -80,12 +92,12 @@ impl Keyboard {
         }
 
         let base_freq = 440. * 2.0f32.powf(self.current_octave as f32);
-        for i in 0..17 {
+        for i in 0..keys.len() {
             if inputs.key_rising(keys[i as usize]) {
-                self.held_keys.push(i);
+                self.held_keys.push(i as u32);
                 self.counters[i as usize] += 1;
                 events.push(KeyboardEvent { 
-                    uid: khash(self.counters[i as usize]) * khash(i),
+                    uid: khash(self.counters[i as usize]) * khash(i as u32),
                     freq: base_freq * 2.0f32.powf(i as f32/12.0),
                     pressed: true,
                 });
@@ -118,7 +130,7 @@ impl Keyboard {
         kc.set_colour(Vec4::new(0.0, 0.0, 0.0, 1.0));
         kc.rect(rect);
         kc.set_depth(1.6);
-        let spaces = rect.split_lrn(11);
+        let spaces = rect.split_lrn(white_keys.len() as i32 + 1);
 
         // Octave up&down buttons
         let (oct_up, oct_down) = spaces[0].split_ud(0.5);
@@ -136,7 +148,7 @@ impl Keyboard {
         kc.rect(oct_down.dilate_pc(-0.05));
 
         // White keys
-        for i in 1..11 {
+        for i in 1..spaces.len() {
             kc.set_colour(if inputs.key_held(white_keys[i-1 as usize]) {
                 Vec4::new(0.8, 0.8, 0.8, 1.0)
             } else {
@@ -148,7 +160,7 @@ impl Keyboard {
         // black keys have fun
         kc.set_depth(1.7);
         let br = |r: Rect| Rect::new(r.x + r.w*0.75, r.y, r.w * 0.5, r.h * 0.5);
-        for (i, bki) in [0, 1, 3, 4, 5, 7, 8].iter().enumerate() {
+        for (i, bki) in [0, 2, 3, 5, 6, 7, 9, 10, 12].iter().enumerate() {
             let bk_rect = br(spaces[(1 + bki) as usize]);
             kc.set_colour(if inputs.key_held(black_keys[i]) {
                 Vec4::new(0.2, 0.2, 0.2, 1.0)

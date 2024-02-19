@@ -272,7 +272,7 @@ where
         // o no negative part tho
         // todo lpf
         // use 2 fibonacci numbers
-        // maybe fucked distortion
+        // maybe fliped distortion
         // sub
         // envelope?
         // keyboard keys & spectrum would be good

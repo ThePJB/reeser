@@ -10,7 +10,7 @@ Next stuff
     * ok all even is half wave rectified sinusioid, also f0 sin + 2f0 saw
     * odd harmonics: think square wave, digital
     * how do you make these, with decimation? can you make arbitrary ones with fft?
-    * yea actually fuck this i got other stuff i can do. vcf is higher value,
+    * yea actually flip this i got other stuff i can do. vcf is higher value,
 
 
 
@@ -27,3 +27,15 @@ not sure why the phase cancellation hits so ahrd at certain frequencies, seems l
 
 also not sure if aliasing, probably
 is there tasteful use of aliasing?
+
+
+todo additive acid
+harmonic rolloff
+harmonic stop
+
+even odd both, oscillating between them?
+
+sweeping component for filter squelch vs. a ghost that visits the harmonics and *s them
+and also moving cutoff: another line that bounds the sound basically, so it can be a rect in frequency domain or 
+basically frequency domain envelope
+so basically ifft or loop through and add em all
